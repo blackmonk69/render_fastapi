@@ -12,11 +12,11 @@ class Base(DeclarativeBase):
     id: Mapped[int] = mapped_column(primary_key=True)
 
 
-class OrderModel(Base):
-    __tablename__ = "order"
+class ProdModel(Base):
+    __tablename__ = "products"
 
     product: Mapped[str]
-    quantity: Mapped[int]
+    qty_stk: Mapped[int]
 
 
 engine = create_engine(os.getenv("db_uri", "sqlite:///orders.db"))
@@ -27,54 +27,55 @@ session_maker = sessionmaker(bind=engine)
 fixture_orders = [
     {
         "product": "Cloak of invisibility",
-        "quantity": 1,
+        "qty_stk": 1,
     },
     {
         "product": "Deluminator",
-        "quantity": 1,
+        "qty_stk": 2,
     },
 ]
 
+
 with session_maker() as session:
-    if not list(session.scalars(select(OrderModel))):
-        orders = [OrderModel(**order_details) for order_details in fixture_orders]
-        session.add_all(orders)
+    if not list(session.scalars(select(ProdModel))):
+        products = [ProdModel(**order_details) for order_details in fixture_orders]
+        session.add_all(products)
         session.commit()
 
 
-server = FastAPI()
+app = FastAPI()
 
 
-class PlaceOrderSchema(BaseModel):
+class PlaceProdSchema(BaseModel):
     product: str
-    quantity: int
+    qty_stk: int
 
 
-class GetOrderSchema(PlaceOrderSchema):
+class GetProdSchema(PlaceProdSchema):
     id: int
 
 
-class ListOrdersSchema(BaseModel):
-    orders: list[GetOrderSchema]
+class ListProdSchema(BaseModel):
+    orders: list[GetProdSchema]
 
 
-@server.get("/orders", response_model=ListOrdersSchema)
+@app.get("/orders", response_model=ListProdSchema)
 def list_orders():
     with session_maker() as session:
-        orders = session.scalars(select(OrderModel))
+        orders = session.scalars(select(ProdModel))
         return {"orders": list(orders)}
 
 
-@server.post(
-    "/orders", response_model=GetOrderSchema, status_code=status.HTTP_201_CREATED
+@app.post(
+    "/orders", response_model=GetProdSchema, status_code=status.HTTP_201_CREATED
 )
-def place_order(order_details: PlaceOrderSchema):
+def place_order(order_details: PlaceProdSchema):
     with session_maker() as session:
-        order = OrderModel(**order_details.dict())
-        session.add(order)
+        prod = ProdModel(**order_details.model_dump())
+        session.add(prod)
         session.commit()
         return {
-            "id": order.id,
-            "product": order.product,
-            "quantity": order.quantity,
+            "id": prod.id,
+            "product": prod.product,
+            "qty_stk": prod.qty_stk,
         }
